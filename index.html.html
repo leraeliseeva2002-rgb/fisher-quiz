@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Фишер — Угадай маньяка</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --ink: #0D0B08;
+  --paper: #F0EBE0;
+  --aged: #D9CEB8;
+  --red: #8B1A1A;
+  --red-dim: #5C1111;
+  --stamp: #C0392B;
+  --text: #1A1714;
+  --muted: #6B6457;
+  --border: #C4B99A;
+  --highlight: #8B1A1A;
+}
+
+html, body {
+  height: 100%;
+  background: var(--ink);
+  font-family: 'Courier Prime', monospace;
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+/* GRAIN OVERLAY */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.envelope {
+  width: 100%;
+  max-width: 640px;
+  background: var(--paper);
+  position: relative;
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 4px 40px rgba(0,0,0,0.7),
+    inset 0 0 80px rgba(0,0,0,0.04);
+}
+
+/* Torn edge effect top */
+.envelope::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 0; right: 0;
+  height: 8px;
+  background: var(--paper);
+  clip-path: polygon(0% 100%, 1% 20%, 2.5% 80%, 4% 10%, 5.5% 70%, 7% 5%, 8.5% 60%, 10% 0%, 11.5% 65%, 13% 15%, 14.5% 75%, 16% 20%, 17.5% 80%, 19% 10%, 20.5% 70%, 22% 0%, 23.5% 55%, 25% 10%, 26.5% 65%, 28% 20%, 29.5% 75%, 31% 5%, 32.5% 60%, 34% 0%, 35.5% 55%, 37% 15%, 38.5% 70%, 40% 10%, 41.5% 65%, 43% 20%, 44.5% 80%, 46% 0%, 47.5% 60%, 49% 15%, 50.5% 70%, 52% 5%, 53.5% 65%, 55% 20%, 56.5% 75%, 58% 10%, 59.5% 60%, 61% 0%, 62.5% 55%, 64% 15%, 65.5% 70%, 67% 20%, 68.5% 75%, 70% 5%, 71.5% 60%, 73% 0%, 74.5% 55%, 76% 10%, 77.5% 65%, 79% 20%, 80.5% 80%, 82% 5%, 83.5% 65%, 85% 15%, 86.5% 70%, 88% 0%, 89.5% 60%, 91% 20%, 92.5% 75%, 94% 10%, 95.5% 65%, 97% 5%, 98.5% 60%, 100% 100%);
+}
+
+/* SCREEN: INTRO */
+.screen { display: none; padding: 40px 36px; animation: fadeUp 0.5s ease; }
+.screen.active { display: block; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* HEADER STAMP AREA */
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--ink);
+}
+.doc-label {
+  font-size: 9px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.doc-label strong {
+  display: block;
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 2px;
+}
+.stamp {
+  border: 3px solid var(--stamp);
+  color: var(--stamp);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  transform: rotate(-8deg);
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+/* TITLE */
+.case-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(26px, 7vw, 44px);
+  font-weight: 900;
+  line-height: 1.05;
+  color: var(--ink);
+  margin-bottom: 6px;
+  letter-spacing: -1px;
+}
+.case-sub {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.case-intro {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text);
+  border-left: 3px solid var(--red);
+  padding-left: 14px;
+  margin-bottom: 28px;
+  font-style: italic;
+}
+
+/* PROGRESS */
+.progress-bar-wrap {
+  height: 3px;
+  background: var(--aged);
+  margin-bottom: 28px;
+  position: relative;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--red);
+  transition: width 0.4s ease;
+}
+.progress-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* QUESTION */
+.question-num {
+  font-size: 9px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+.question-text {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(16px, 4vw, 22px);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+  margin-bottom: 24px;
+  font-style: italic;
+}
+
+/* OPTIONS */
+.options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border);
+  background: rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.option:hover {
+  border-color: var(--ink);
+  background: rgba(139,26,26,0.05);
+}
+.option.selected {
+  border-color: var(--red);
+  background: rgba(139,26,26,0.08);
+}
+.option.correct {
+  border-color: #2E7D32;
+  background: rgba(46,125,50,0.08);
+}
+.option.wrong {
+  border-color: var(--red);
+  background: rgba(139,26,26,0.1);
+  opacity: 0.7;
+}
+.option-letter {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--muted);
+  width: 18px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.option.selected .option-letter { color: var(--red); }
+.option-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.option-check {
+  margin-left: auto;
+  font-size: 16px;
+  flex-shrink: 0;
+  display: none;
+}
+.option.correct .option-check { display: block; color: #2E7D32; }
+.option.wrong .option-check { display: block; color: var(--red); }
+
+/* EXPLANATION */
+.explanation {
+  display: none;
+  background: rgba(139,26,26,0.06);
+  border-left: 3px solid var(--red);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text);
+  margin-bottom: 20px;
+  font-style: italic;
+}
+.explanation.show { display: block; animation: fadeUp 0.3s ease; }
+.explanation strong { color: var(--red); font-style: normal; }
+
+/* BUTTONS */
+.btn {
+  display: inline-block;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 14px 28px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--red);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.2s ease;
+  z-index: 0;
+}
+.btn:hover::after { transform: scaleX(1); }
+.btn span { position: relative; z-index: 1; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:disabled::after { display: none; }
+
+.btn-outline {
+  background: transparent;
+  color: var(--ink);
+  border: 2px solid var(--ink);
+}
+.btn-outline::after { background: var(--ink); }
+.btn-outline:hover { color: var(--paper); }
+
+.btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* RESULT SCREEN */
+.result-badge {
+  text-align: center;
+  padding: 28px 0 20px;
+}
+.result-icon {
+  font-size: 52px;
+  display: block;
+  margin-bottom: 12px;
+}
+.result-rank {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(22px, 6vw, 36px);
+  font-weight: 900;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.result-score {
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 16px;
+}
+.result-desc {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--muted);
+  max-width: 420px;
+  margin: 0 auto 24px;
+  font-style: italic;
+}
+
+/* SCORE BREAKDOWN */
+.score-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12px;
+}
+.score-line:last-child { border-bottom: none; }
+.score-q { color: var(--muted); font-style: italic; }
+.score-mark { font-weight: 700; }
+.score-mark.ok { color: #2E7D32; }
+.score-mark.no { color: var(--red); }
+
+/* SHARE BLOCK */
+.share-block {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 20px;
+  margin-top: 24px;
+  text-align: center;
+}
+.share-title {
+  font-size: 9px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--aged);
+  margin-bottom: 12px;
+}
+.share-text-box {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--paper);
+  margin-bottom: 14px;
+  text-align: left;
+  font-style: italic;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.share-text-box:hover { background: rgba(255,255,255,0.1); }
+.copy-hint {
+  position: absolute;
+  top: 8px; right: 10px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--aged);
+  text-transform: uppercase;
+}
+.share-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.share-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--paper);
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.share-btn:hover { background: var(--red); border-color: var(--red); }
+
+/* DOSSIER CARD (intro suspect cards) */
+.suspects-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.suspect-card {
+  border: 1.5px solid var(--border);
+  padding: 12px;
+  background: rgba(255,255,255,0.2);
+  position: relative;
+}
+.suspect-name {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.suspect-years {
+  font-size: 9px;
+  color: var(--red);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.suspect-fact {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.redacted {
+  background: var(--ink);
+  color: var(--ink);
+  user-select: none;
+  border-radius: 1px;
+  padding: 0 4px;
+}
+
+/* DIVIDER */
+.rule { border: none; border-top: 1px dashed var(--border); margin: 20px 0; }
+.rule-solid { border: none; border-top: 2px solid var(--ink); margin: 20px 0; }
+
+/* CTA strip */
+.cta-strip {
+  background: var(--red);
+  color: var(--paper);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.cta-text { font-size: 12px; letter-spacing: 1px; font-style: italic; }
+.cta-btn {
+  background: var(--paper);
+  color: var(--red);
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.cta-btn:hover { background: var(--ink); color: var(--paper); }
+
+@media (max-width: 480px) {
+  .screen { padding: 28px 20px; }
+  .suspects-grid { grid-template-columns: 1fr; }
+  .doc-header { flex-direction: column; gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+<div class="envelope">
+
+<!-- ═══════════ INTRO SCREEN ═══════════ -->
+<div class="screen active" id="screen-intro">
+  <div class="doc-header">
+    <div class="doc-label">
+      Дело №
+      <strong>ZATMENIE-2025</strong>
+      Гриф: <span style="color:var(--red);font-weight:700">СЕКРЕТНО</span>
+    </div>
+    <div class="stamp">Открытое дело</div>
+  </div>
+
+  <div class="case-title">Угадай,<br>кто следующий</div>
+  <div class="case-sub">Спецпроект сериала «Фишер. Затмение»</div>
+
+  <div class="case-intro">
+    Пока следователи Боков и Козырев охотятся за новым маньяком на юге России — ты тоже можешь попробовать вычислить его. В деле 6 вопросов. Реальные факты. Только один верный след.
+  </div>
+
+  <hr class="rule">
+  <div style="font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:14px">Фигуранты дела</div>
+
+  <div class="suspects-grid">
+    <div class="suspect-card">
+      <div class="suspect-name">Леван Ароян</div>
+      <div class="suspect-years">1962–1991 · Юг СССР</div>
+      <div class="suspect-fact">Орудовал в <span class="redacted">██████</span> области. Известен особой жестокостью ритуалов.</div>
+    </div>
+    <div class="suspect-card">
+      <div class="suspect-name">Братья Габидуллины</div>
+      <div class="suspect-years">1980-е · Казахстан</div>
+      <div class="suspect-fact">Серия нераскрытых убийств. Действовали <span class="redacted">█████████</span> образом.</div>
+    </div>
+    <div class="suspect-card">
+      <div class="suspect-name">Сергей Чёрный</div>
+      <div class="suspect-years">1970-е–1980-е · Ростов</div>
+      <div class="suspect-fact">Прозвище получил за <span class="redacted">███</span>. Дело закрыто без приговора.</div>
+    </div>
+    <div class="suspect-card">
+      <div class="suspect-name">Неизвестный</div>
+      <div class="suspect-years">1990-е · ???</div>
+      <div class="suspect-fact">Личность до сих пор <span class="redacted">████████████████</span> официально.</div>
+    </div>
+  </div>
+
+  <div style="font-size:11px; color:var(--muted); line-height:1.7; margin-bottom:24px; font-style:italic">
+    ⚠ Материалы содержат реальные криминалистические данные. Ответь на 6 вопросов и узнай, кто из советских маньяков лёг в основу нового сезона.
+  </div>
+
+  <button class="btn" onclick="startQuiz()"><span>Открыть дело →</span></button>
+</div>
+
+<!-- ═══════════ QUIZ SCREEN ═══════════ -->
+<div class="screen" id="screen-quiz">
+  <div class="doc-header">
+    <div class="doc-label">
+      Дело №ZATMENIE-2025
+      <strong id="q-label">Вопрос 1 из 6</strong>
+    </div>
+    <div class="stamp" id="q-stamp">Улика</div>
+  </div>
+
+  <div class="progress-label" id="prog-label">Продвижение по делу: 0%</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="prog-fill" style="width:0%"></div>
+  </div>
+
+  <div class="question-num" id="q-num">01 / 06</div>
+  <div class="question-text" id="q-text"></div>
+
+  <div class="options" id="q-options"></div>
+
+  <div class="explanation" id="q-explanation"></div>
+
+  <div class="btn-row">
+    <button class="btn" id="btn-next" onclick="nextQuestion()" disabled><span>Следующая улика →</span></button>
+  </div>
+</div>
+
+<!-- ═══════════ RESULT SCREEN ═══════════ -->
+<div class="screen" id="screen-result">
+  <div class="doc-header">
+    <div class="doc-label">
+      Дело №ZATMENIE-2025
+      <strong>Заключение следствия</strong>
+    </div>
+    <div class="stamp" id="result-stamp">Итог</div>
+  </div>
+
+  <div class="result-badge">
+    <span class="result-icon" id="result-icon">🔍</span>
+    <div class="result-rank" id="result-rank">Старший следователь</div>
+    <div class="result-score" id="result-score">5 из 6 правильных ответов</div>
+    <div class="result-desc" id="result-desc">Ты почти раскрыл дело. Следователям Бокову и Козыреву нужны такие люди.</div>
+  </div>
+
+  <hr class="rule-solid">
+  <div style="font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:14px">Протокол допроса</div>
+  <div id="score-breakdown"></div>
+
+  <!-- CTA BLOCK -->
+  <div style="background:var(--ink); padding:24px; margin-top:8px;">
+    <div style="font-size:9px; letter-spacing:4px; text-transform:uppercase; color:#888; margin-bottom:10px; text-align:center;">Следующий шаг</div>
+    <div style="font-family:'Playfair Display',serif; font-size:20px; font-weight:900; color:#fff; text-align:center; line-height:1.25; margin-bottom:8px;">
+      Узнай, кто маньяк<br>на самом деле
+    </div>
+    <div style="font-size:12px; color:#888; text-align:center; margin-bottom:20px; font-style:italic; line-height:1.6;">
+      Ответ зашифрован в новом сезоне.<br>«Фишер. Затмение» — уже на Wink
+    </div>
+    <button onclick="openWink()" style="
+      display:block; width:100%;
+      background:#8B1A1A; color:#F0EBE0;
+      font-family:'Courier Prime',monospace;
+      font-size:12px; font-weight:700;
+      letter-spacing:3px; text-transform:uppercase;
+      padding:16px; border:none; cursor:pointer;
+      transition:background 0.2s; margin-bottom:10px;
+    " onmouseover="this.style.background='#C0392B'" onmouseout="this.style.background='#8B1A1A'">
+      Оформить подписку →
+    </button>
+    <button onclick="shareResult()" style="
+      display:block; width:100%;
+      background:transparent; color:#888;
+      font-family:'Courier Prime',monospace;
+      font-size:10px; font-weight:700;
+      letter-spacing:2px; text-transform:uppercase;
+      padding:12px; border:1px solid #333; cursor:pointer;
+      transition:all 0.2s;
+    " onmouseover="this.style.borderColor='#888';this.style.color='#F0EBE0'" onmouseout="this.style.borderColor='#333';this.style.color='#888'">
+      🗂 Поделиться результатом
+    </button>
+  </div>
+
+  <div style="margin-top:12px; text-align:center; padding-bottom:8px;">
+    <button class="btn btn-outline" onclick="restartQuiz()"><span>← Начать заново</span></button>
+  </div>
+
+  <!-- hidden share text -->
+  <span id="share-content" style="display:none"></span>
+</div>
+
+</div><!-- /envelope -->
+</div><!-- /wrapper -->
+
+<script>
+const questions = [
+  {
+    text: "В 1992 году на юге СССР был задержан маньяк, орудовавший более 6 лет. Сколько жертв официально числится за Сергеем Головкиным («Фишером»)?",
+    options: ["7 подростков", "11 подростков", "14 человек", "19 жертв"],
+    correct: 1,
+    explanation: "<strong>11 подростков</strong> — официальное число жертв по материалам суда. Все мальчики и юноши из Одинцовского района. Головкин стал последним, кому в РФ была применена высшая мера — расстрел.",
+    stamp: "Улика 01"
+  },
+  {
+    text: "Следствие по «Фишеру» длилось 6 лет. Какой главный просчёт позволял маньяку так долго оставаться на свободе?",
+    options: [
+      "Дела велись разными отделами без координации",
+      "Следователи считали убийства несчастными случаями",
+      "Головкин работал в органах и имел доступ к делу",
+      "Свидетели намеренно скрывали информацию"
+    ],
+    correct: 0,
+    explanation: "<strong>Отсутствие координации</strong> между ведомствами — классическая проблема советской и российской криминалистики 80-х. Именно об этом конфликте следователей рассказывает первый сезон «Фишера».",
+    stamp: "Улика 02"
+  },
+  {
+    text: "Второй сезон «Фишер. Затмение» перемещает действие на юг России. Какой реальный регион послужил основой для новых событий?",
+    options: ["Краснодарский край", "Ставропольский край", "Абхазия / Черноморское побережье", "Ростовская область"],
+    correct: 2,
+    explanation: "<strong>Съёмки проходили в Абхазии</strong> — команда работала там зимой, когда нет туристов и небо затянуто тучами. Режиссёр Александр Цой намеренно выбрал этот период для «фирменной мрачности».",
+    stamp: "Улика 03"
+  },
+  {
+    text: "Создатели сериала намеренно не раскрыли прототип нового маньяка до премьеры. Какой из реальных преступников чаще всего называется в версиях фанатов?",
+    options: [
+      "Братья Габидуллины",
+      "Анатолий Сливко",
+      "Леван Ароян",
+      "Михаил Попков («Ангарский маньяк»)"
+    ],
+    correct: 2,
+    explanation: "<strong>Леван Ароян</strong> — одна из наиболее часто упоминаемых версий среди фанатов. Создатели умышленно оставили несколько правдоподобных «следов», чтобы поддержать интригу до финала сезона.",
+    stamp: "Улика 04"
+  },
+  {
+    text: "Иван Янковский получил «Золотой орёл» за роль в «Фишере». В каком ещё сериале 2023 года он одновременно стал открытием года?",
+    options: [
+      "«Нулевой пациент»",
+      "«Слово пацана. Кровь на асфальте»",
+      "«Тень Чикатило»",
+      "«Оффлайн»"
+    ],
+    correct: 1,
+    explanation: "<strong>«Слово пацана»</strong> — именно за эти два сериала одновременно Янковский получил премию «КиноРепортёра» как «Актёр года». Оба проекта вышли в 2023-м и задали новую планку для российского стриминга.",
+    stamp: "Улика 05"
+  },
+  {
+    text: "Шоураннер второго сезона Наталья Капустина описала его одним словом-темой. Что лежит в основе истории «Затмения»?",
+    options: ["Месть", "Прощение", "Одержимость", "Предательство"],
+    correct: 1,
+    explanation: "<strong>Прощение</strong> — именно так описала главную тему сезона сценарист Наталья Капустина. На фоне охоты за маньяком разворачивается история о том, способны ли люди простить — себя и других.",
+    stamp: "Улика 06"
+  }
+];
+
+let current = 0;
+let score = 0;
+let answers = [];
+let answered = false;
+
+function startQuiz() {
+  showScreen('screen-quiz');
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q = questions[current];
+  answered = false;
+
+  document.getElementById('q-label').textContent = `Вопрос ${current + 1} из ${questions.length}`;
+  document.getElementById('q-num').textContent = `${String(current + 1).padStart(2, '0')} / ${String(questions.length).padStart(2, '0')}`;
+  document.getElementById('q-stamp').textContent = q.stamp;
+  document.getElementById('q-text').textContent = q.text;
+
+  const pct = Math.round((current / questions.length) * 100);
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = `Продвижение по делу: ${pct}%`;
+
+  const optContainer = document.getElementById('q-options');
+  optContainer.innerHTML = '';
+  const letters = ['А', 'Б', 'В', 'Г'];
+  q.options.forEach((opt, i) => {
+    const el = document.createElement('div');
+    el.className = 'option';
+    el.innerHTML = `<span class="option-letter">${letters[i]}.</span><span class="option-text">${opt}</span><span class="option-check"></span>`;
+    el.onclick = () => selectOption(i, el);
+    optContainer.appendChild(el);
+  });
+
+  document.getElementById('q-explanation').className = 'explanation';
+  document.getElementById('q-explanation').innerHTML = '';
+  document.getElementById('btn-next').disabled = true;
+
+  const btnNext = document.getElementById('btn-next');
+  btnNext.querySelector('span').textContent = current === questions.length - 1 ? 'Подвести итог →' : 'Следующая улика →';
+}
+
+function selectOption(idx, el) {
+  if (answered) return;
+  answered = true;
+
+  const q = questions[current];
+  const opts = document.querySelectorAll('.option');
+  const checks = ['✓', '✗'];
+
+  opts.forEach((opt, i) => {
+    opt.onclick = null;
+    if (i === q.correct) {
+      opt.classList.add('correct');
+      opt.querySelector('.option-check').textContent = '✓';
+    } else if (i === idx && idx !== q.correct) {
+      opt.classList.add('wrong');
+      opt.querySelector('.option-check').textContent = '✗';
+    }
+  });
+
+  const isCorrect = idx === q.correct;
+  if (isCorrect) score++;
+
+  answers.push({ question: q.text.substring(0, 50) + '…', correct: isCorrect });
+
+  const exp = document.getElementById('q-explanation');
+  exp.innerHTML = q.explanation;
+  exp.classList.add('show');
+
+  document.getElementById('btn-next').disabled = false;
+}
+
+function nextQuestion() {
+  current++;
+  if (current >= questions.length) {
+    showResult();
+  } else {
+    renderQuestion();
+  }
+}
+
+function showResult() {
+  showScreen('screen-result');
+
+  document.getElementById('prog-fill').style.width = '100%';
+
+  const ranks = [
+    { min: 0, max: 1, icon: '📁', rank: 'Стажёр', stamp: 'Дело не раскрыто', desc: 'Маньяк ускользнул. Возможно, тебе стоит пересмотреть первый сезон — там много подсказок.' },
+    { min: 2, max: 3, icon: '🔎', rank: 'Оперативник', stamp: 'Частично раскрыто', desc: 'Неплохой старт. Ты нашёл несколько зацепок, но след потерян. Продолжай расследование.' },
+    { min: 4, max: 5, icon: '🗂️', rank: 'Следователь', stamp: 'Почти раскрыто', desc: 'Ты близко. Боков и Козырев оценили бы твою настойчивость. Осталось поймать последнего.' },
+    { min: 6, max: 6, icon: '🏛️', rank: 'Старший следователь', stamp: 'Дело закрыто', desc: 'Блестяще. Ты разгадал все улики. Такой следователь поймал бы Фишера на два года раньше.' }
+  ];
+
+  const r = ranks.find(x => score >= x.min && score <= x.max);
+  document.getElementById('result-icon').textContent = r.icon;
+  document.getElementById('result-rank').textContent = r.rank;
+  document.getElementById('result-score').textContent = `${score} из ${questions.length} правильных ответов`;
+  document.getElementById('result-desc').textContent = r.desc;
+  document.getElementById('result-stamp').textContent = r.stamp;
+
+  const breakdown = document.getElementById('score-breakdown');
+  breakdown.innerHTML = answers.map((a, i) => `
+    <div class="score-line">
+      <span class="score-q">${i + 1}. ${a.question}</span>
+      <span class="score-mark ${a.correct ? 'ok' : 'no'}">${a.correct ? '✓ Верно' : '✗ Мимо'}</span>
+    </div>
+  `).join('');
+
+  const shareTexts = {
+    0: `Я полный нуль как следователь 😅 Прошёл квиз «Угадай маньяка» по сериалу «Фишер. Затмение» — угадал 0 из 6. Попробуй сам: wink.ru`,
+    1: `Совпадение? Не думаю 🤔 Угадал 1 из 6 улик в квизе «Фишер. Затмение». Маньяк всё ещё на свободе. Ты справишься лучше? wink.ru`,
+    2: `Пытался поймать маньяка — поймал только 2 из 6 📂 Квиз «Фишер. Затмение» доказал: я не Шерлок. А ты? wink.ru`,
+    3: `3 из 6 — я где-то посередине 🗂️ Прошёл детективный квиз по «Фишер. Затмение». Смотри сам — новый сезон на wink.ru`,
+    4: `Почти поймал маньяка! 4 из 6 🔎 Квиз «Фишер. Затмение» — оказывается, я неплохой следак. Ты пробовал? wink.ru`,
+    5: `5 из 6 в квизе «Фишер. Затмение» 🗂️ Почти идеально. Кто поставил под сомнение одну улику? Проверь сам: wink.ru`,
+    6: `6 из 6 🏛️ Раскрыл все улики в квизе «Фишер. Затмение»! Маньяк не скрылся бы от такого следователя. Новый сезон на wink.ru`
+  };
+
+  document.getElementById('share-content').textContent = shareTexts[score] || shareTexts[3];
+}
+
+// ===== WINK LINK — заменить на реальную ссылку от Wink =====
+const WINK_URL = 'https://wink.ru/subscription'; // <-- СЮДА вставить ссылку от Wink
+
+// Инициализация Telegram WebApp
+if (window.Telegram && window.Telegram.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+}
+
+function openWink() {
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.openLink(WINK_URL);
+  } else {
+    window.open(WINK_URL, '_blank');
+  }
+}
+
+function shareResult() {
+  const text = document.getElementById('share-content').textContent;
+  if (window.Telegram && window.Telegram.WebApp) {
+    // Нативный шэринг через Telegram
+    window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=https://wink.ru&text=${encodeURIComponent(text)}`);
+  } else {
+    navigator.clipboard.writeText(text).then(() => alert('Скопировано!'));
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function restartQuiz() {
+  current = 0; score = 0; answers = [];
+  showScreen('screen-intro');
+}
+</script>
+</body>
+</html>
