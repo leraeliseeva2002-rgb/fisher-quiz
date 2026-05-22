@@ -778,6 +778,7 @@ function showResult() {
   ];
 
   const r = ranks.find(x => score >= x.min && score <= x.max);
+  saveToSheets(r.rank); // сохраняем в Google Sheets
   document.getElementById('result-icon').textContent = r.icon;
   document.getElementById('result-rank').textContent = r.rank;
   document.getElementById('result-score').textContent = `${score} из ${questions.length} правильных ответов`;
@@ -808,10 +809,40 @@ function showResult() {
 // ===== WINK LINK — заменить на реальную ссылку от Wink =====
 const WINK_URL = 'https://wink.ru/subscription'; // <-- СЮДА вставить ссылку от Wink
 
+// ===== GOOGLE SHEETS — ссылка на Apps Script =====
+const SHEETS_URL = 'https://script.google.com/a/macros/mgcom.ru/s/AKfycbzLKseq8ILqnNnk8_myR9kW8VnF-ui2Ts3330f88ylSG-8nLi8SayIBVGjELUTEJGCuyA/exec';
+
 // Инициализация Telegram WebApp
 if (window.Telegram && window.Telegram.WebApp) {
   window.Telegram.WebApp.ready();
   window.Telegram.WebApp.expand();
+}
+
+// Получаем данные пользователя из Telegram
+function getTgUser() {
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    if (user) return user;
+  }
+  return null;
+}
+
+// Отправляем данные в Google Sheets
+function saveToSheets(rank) {
+  const user = getTgUser();
+  const payload = {
+    telegram_id: user ? user.id : 'web',
+    first_name: user ? (user.first_name || '—') : 'web',
+    username: user ? (user.username ? '@' + user.username : '—') : '—',
+    score: score,
+    rank: rank
+  };
+  fetch(SHEETS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {}); // тихо игнорируем ошибки
 }
 
 function openWink() {
